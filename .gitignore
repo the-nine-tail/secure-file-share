@@ -1,0 +1,10 @@
+# Node modules
+frontend/node_modules/
+frontend/package-lock.json
+# Python cache
+backend/__pycache__/
+backend/.DS_Store
+# Virtual environment
+backend/venv/
+.env
+.DS_Store

@@ -1,0 +1,24 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: secure-file-share-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    # Optional environment variables if needed
+    environment:
+      - ENV=production
+
+  frontend:
+    build: ./frontend
+    container_name: secure-file-share-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    # If you want live code reloading for dev, mount volumes, but that complicates
+    # the multi-stage build approach. For production, you typically won't do that.
