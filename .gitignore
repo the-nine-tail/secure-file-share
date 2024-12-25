@@ -6,5 +6,5 @@ backend/__pycache__/
 backend/.DS_Store
 # Virtual environment
 backend/venv/
-.env
+backend/uploaded_data/
 .DS_Store
