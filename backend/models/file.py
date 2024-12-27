@@ -1,13 +1,13 @@
 from pydantic import BaseModel
 from typing import Optional
 
-# class FileMetadata(BaseModel):
-#     filename: str
-#     filesize: int
-#     filetype: str
-#     extension: str
-#     height: Optional[int] = None
-#     width: Optional[int] = None
+class FileMetadata(BaseModel):
+    filename: str
+    filesize: int
+    filetype: str
+    extension: str
+    height: Optional[int] = None
+    width: Optional[int] = None
 
 
 
@@ -17,26 +17,31 @@ class PublicKeyUpload(BaseModel):
     public_key_b64: str  # base64-encoded SPKI
 
 
-class FileMetadata(BaseModel):
-    filename: str
-    filetype: str = ""
-    filesize: int = 0
-
-class FileResponse(FileMetadata):
-    file_id: str
-    user_email: str 
-
-class UploadData(BaseModel):
-    """Used when uploading a file with multiple encrypted AES keys."""
-    owner: str
-    encryptedFileB64: str
-    recipients: dict  # { "alice@example.com": <AESKeyEncForAlice>, "bob@example.com": <AESKeyEncForBob>, ... }
-    metadata: FileMetadata
 
 class FileResponse(BaseModel):
-    fileId: str
-    message: str
+    file_id: str
+    filename: str
+    filesize: int
+    filetype: str
+    extension: str
+    height: Optional[int] = None
+    width: Optional[int] = None
+    user_email: str
+
+
+class UploadData(BaseModel):
+    owner: str
+    encryptedFileB64: str
+    recipients: dict
+    file_metadata: FileMetadata
+
 
 class DownloadResponse(BaseModel):
     encryptedFileB64: str
     encryptedKeyB64: str
+    file_metadata: FileMetadata
+
+
+class UpdateRecipients(BaseModel):
+    added_keys: dict
+    removed_users: list[str] = []
