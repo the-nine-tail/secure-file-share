@@ -5,8 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useAppSelector } from '../store/hooks';
 import { useAuth } from '../context/AuthContext';
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAppSelector(state => state.auth);
+interface RoleProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles: string[];
+}
+
+export default function ProtectedRoute({ children, allowedRoles }: RoleProtectedRouteProps) {
+  const { user, isAuthenticated, isLoading } = useAppSelector(state => state.auth);
   const { checkAuth } = useAuth();
   const router = useRouter();
   const authCheckAttempted = useRef(false);
@@ -25,6 +30,14 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
     verifyAuth();
   }, [checkAuth, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user) {
+      if (!allowedRoles.includes(user.role)) {
+        router.push('/no-permission');
+      }
+    }
+  }, [isAuthenticated, isLoading, user, router, allowedRoles]);
 
   if (isLoading) {
     return (

@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = useCallback(async () => {
     // Skip if we're already loading or have checked auth
+    console.log('isLoading:', isLoading);
     if (isLoading || authCheckRef.current) {
       return isAuthenticated;
     }

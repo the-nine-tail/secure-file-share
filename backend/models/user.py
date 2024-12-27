@@ -6,6 +6,7 @@ class UserCreate(BaseModel):
     email: str
     password: str
     full_name: str
+    role: str = "user"
     mfa_active: bool = False
 
 class UserLogin(BaseModel):
@@ -29,6 +30,7 @@ class Token(BaseModel):
 class UserData(BaseModel):
     email: str
     full_name: str
+    role: str = "user"
     mfa_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

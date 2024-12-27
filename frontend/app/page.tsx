@@ -10,7 +10,6 @@ export default function Home() {
     <ThemeProvider theme={Theme}>
       <MainAppStyle>
         <DashboardPage />
-        <div id="portal-root"></div>
       </MainAppStyle>
     </ThemeProvider>
   );

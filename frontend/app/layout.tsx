@@ -16,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={WorkSansRegular.className}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+        </Providers>
+        <div id="portal-root" className="inactive" />
       </body>
     </html>
   );

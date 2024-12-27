@@ -3,6 +3,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 export interface UserData {
   email: string;
   full_name: string;
+  role: string;
   mfa_active: boolean;
   created_at: string;
   updated_at?: string;
@@ -17,7 +18,7 @@ interface AuthState {
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: false,
 };
 
 const authSlice = createSlice({

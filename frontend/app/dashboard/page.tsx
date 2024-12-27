@@ -1,10 +1,13 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import AuthenticatedLayout from "~/app/authentication/AuthenticatedLayout";
 import { MainPageStyle } from "./style";
-import ProtectedRoute from "../authentication/ProtectedRoute";
 import { StringUtils } from "../utils/string-utils";
 import { useAppSelector } from "../store/hooks";
 import { apiUrl } from "../constants/authConstant";
+import { Table } from '~/app/ui-components/table';
+import { Modal } from "../ui-components/modal";
+import { LOADING_MODAL } from "../constants/constant";
 
 function validateEncryptedData(encryptedData: ArrayBuffer) {
   // GCM mode requires at least 16 bytes for the auth tag
@@ -43,11 +46,12 @@ const DashboardPage: React.FC = () => {
   const [myEmail, setMyEmail] = useState<string | null>(user?.email ?? null);
   const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
-  const [shareWith, setShareWith] = useState<string | null>(null);
+  const [shareWith, setShareWith] = useState<string>("");
   const [downloadFileId, setDownloadFileId] = useState("");
   const [selectedFileId, setSelectedFileId] = useState("");
   const [newShareEmail, setNewShareEmail] = useState("");
   const [removeShareEmail, setRemoveShareEmail] = useState("");
+  const [modalProps, setModalProps] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.email) {
@@ -131,8 +135,8 @@ const DashboardPage: React.FC = () => {
   }
 
   // -------------------- Encrypt & Upload --------------------
-  async function handleEncryptAndUpload() {
-    if (!file) {
+  async function handleEncryptAndUpload(_file: File) {
+    if (!_file) {
       alert("No file selected.");
       return;
     }
@@ -142,8 +146,9 @@ const DashboardPage: React.FC = () => {
     }
 
     try {
+      setModalProps("upload");
       // 1) Read the file as ArrayBuffer
-      const fileBuffer = await file.arrayBuffer();
+      const fileBuffer = await _file.arrayBuffer();
 
       // 2) Generate ephemeral AES key
       const aesKey = await window.crypto.subtle.generateKey(
@@ -183,6 +188,7 @@ const DashboardPage: React.FC = () => {
       const recipientsObj: Record<string, string> = {};
       const shareEmails = shareWith.split(",").map(e => e.trim().toLowerCase());
       // Always include "myEmail" so the owner can decrypt later
+      console.log("shareEmails", shareEmails);
       if (!shareEmails.includes(myEmail.toLowerCase())) {
         shareEmails.push(myEmail.toLowerCase());
       }
@@ -191,58 +197,65 @@ const DashboardPage: React.FC = () => {
       const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
 
       // For each user in shareEmails:
-      for (const user of shareEmails) {
-        // Fetch user’s public key from server
-        const userPublicKey = await getPublicKeyFromServer(user);
-        console.log("userPublicKey", userPublicKey);
-        // Encrypt rawAesKey with userPublicKey (RSA-OAEP)
-        const encryptedAesKeyBuf = await window.crypto.subtle.encrypt(
-          { name: "RSA-OAEP" },
-          userPublicKey,
-          rawAesKey
-        );
-        const encryptedAesKeyB64 = StringUtils.arrayBufferToBase64(encryptedAesKeyBuf);
-        recipientsObj[user] = encryptedAesKeyB64;
+      if (shareEmails.length > 0) {
+        for (const user of shareEmails) {
+          if (!user) continue;
+          // Fetch user’s public key from server
+          const userPublicKey = await getPublicKeyFromServer(user);
+          console.log("userPublicKey", userPublicKey);
+          // Encrypt rawAesKey with userPublicKey (RSA-OAEP)
+          const encryptedAesKeyBuf = await window.crypto.subtle.encrypt(
+            { name: "RSA-OAEP" },
+            userPublicKey,
+            rawAesKey
+          );
+          const encryptedAesKeyB64 = StringUtils.arrayBufferToBase64(encryptedAesKeyBuf);
+          recipientsObj[user] = encryptedAesKeyB64;
+        } 
       }
 
       // Get file metadata
       const metadata = {
-        filename: file.name,
-        filesize: file.size,
-        filetype: file.type,
-        extension: file.name.split('.').pop() || '',
+        filename: _file.name,
+        filesize: _file.size,
+        filetype: _file.type,
+        extension: _file.name.split('.').pop() || '',
         height: null as number | null,
         width: null as number | null,
       };
 
       // If it's an image, get dimensions
-      if (file.type.startsWith('image/')) {
-        const dimensions = await getImageDimensions(file);
+      if (_file.type.startsWith('image/')) {
+        const dimensions = await getImageDimensions(_file);
         metadata.height = dimensions.height;
         metadata.width = dimensions.width;
       }
 
-      const res = await fetch(`${apiUrl}/uploadEncryptedE2EE`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch(`${apiUrl}/uploadEncryptedE2EE`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
         body: JSON.stringify({
           owner: myEmail,
-          encryptedFileB64,
+          encryptedFileB64: encryptedFileB64,
           recipients: recipientsObj,
-          file_metadata: metadata,
-        }),
+          file_metadata: metadata
+        })
       });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Upload failed: ${errText}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Upload failed');
       }
-      const result = await res.json();
-      alert(`Upload success! File ID: ${result.fileId}`);
+
+      const result = await response.json();
+      console.log('Upload successful:', result);
+      setModalProps("upload_success");
     } catch (error) {
       console.error("Error in handleEncryptAndUpload:", error);
-      alert(String(error));
+      setModalProps("upload_failed");
     }
   }
 
@@ -416,70 +429,63 @@ const DashboardPage: React.FC = () => {
     }
   }
 
+  const handleFileSelect = (file: File) => {
+    setFile(file);
+    handleEncryptAndUpload(file);
+  };
+
   return (
-    <ProtectedRoute>
+    <AuthenticatedLayout 
+      allowedRoles={["admin", "user"]}
+      onFileSelect={handleFileSelect}
+    >
+      <Modal
+        isOpen={modalProps !== null}
+        onClose={() => setModalProps(null)}
+        title={modalProps ? LOADING_MODAL[modalProps].title : ""}
+        description={modalProps ? LOADING_MODAL[modalProps].description : ""}
+        type={modalProps ? LOADING_MODAL[modalProps].type : "loading"}
+      />
       <MainPageStyle>
-      <div style={{ margin: "2rem" }}>
-      <h1>Simple Personal Key Infrastructure (Multi-Recipient)</h1>
+        <div style={{ margin: "2rem" }}>
+          <h2>Download & Decrypt File</h2>
+          <input
+            type="text"
+            placeholder="File ID"
+            value={downloadFileId}
+            onChange={(e) => setDownloadFileId(e.target.value)}
+          />
+          <button onClick={handleDownloadAndDecrypt}>Decrypt and download file</button>
 
-      <input
-        type="text"
-        placeholder="Email"
-        value={myEmail}
-        onChange={(e) => setMyEmail(e.target.value)}
-      />
-      <button onClick={() => loadOrGenerateKeyPair(myEmail)}>Load/Generate Key Pair</button>
-      <br /><br />
+          <h2>Update File Sharing</h2>
+          <input
+            type="text"
+            placeholder="File ID to modify sharing"
+            value={selectedFileId}
+            onChange={(e) => setSelectedFileId(e.target.value)}
+          />
+          <br /><br />
 
-      <hr />
+          <input
+            type="text"
+            placeholder="Add new recipient email"
+            value={newShareEmail}
+            onChange={(e) => setNewShareEmail(e.target.value)}
+          />
+          <br />
 
-      <h2>Upload File (Encrypted)</h2>
-      <input
-        type="file"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-      />
-      <br /><br />
+          <input
+            type="text"
+            placeholder="Remove recipient email"
+            value={removeShareEmail}
+            onChange={(e) => setRemoveShareEmail(e.target.value)}
+          />
+          <br /><br />
 
-      <button onClick={handleEncryptAndUpload}>Encrypt & Upload</button>
-      <br /><br />
-      <h2>Download & Decrypt File</h2>
-      <input
-        type="text"
-        placeholder="File ID"
-        value={downloadFileId}
-        onChange={(e) => setDownloadFileId(e.target.value)}
-      />
-      <button onClick={handleDownloadAndDecrypt}>Decrypt and download file</button>
-
-      <h2>Update File Sharing</h2>
-      <input
-        type="text"
-        placeholder="File ID to modify sharing"
-        value={selectedFileId}
-        onChange={(e) => setSelectedFileId(e.target.value)}
-      />
-      <br /><br />
-
-      <input
-        type="text"
-        placeholder="Add new recipient email"
-        value={newShareEmail}
-        onChange={(e) => setNewShareEmail(e.target.value)}
-      />
-      <br />
-
-      <input
-        type="text"
-        placeholder="Remove recipient email"
-        value={removeShareEmail}
-        onChange={(e) => setRemoveShareEmail(e.target.value)}
-      />
-      <br /><br />
-
-      <button onClick={handleUpdateSharing}>Update Sharing</button>
-      </div>
+          <button onClick={handleUpdateSharing}>Update Sharing</button>
+        </div>
       </MainPageStyle>
-    </ProtectedRoute>
+    </AuthenticatedLayout>
   );
 };
 

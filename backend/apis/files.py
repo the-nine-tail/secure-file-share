@@ -1,6 +1,7 @@
 import os
 import uuid
 from fastapi import APIRouter, HTTPException, Request, Depends
+from dependencies.permissions import require_permissions
 from sqlalchemy.orm import Session
 from database.config import get_db
 from database.models import EncryptedFileShare, File, PublicKeyMapping, User
@@ -43,6 +44,7 @@ def get_public_key(user_email: str, db: Session = Depends(get_db)):
 
 
 @router.post("/uploadEncryptedE2EE", response_model=FileResponse)
+@require_permissions(["upload_file"])
 def upload_encrypted_file(
     data: UploadData,
     current_user_data: Tuple[User, str] = Depends(get_current_user),
@@ -99,6 +101,7 @@ def upload_encrypted_file(
 
 
 @router.get("/downloadEncryptedE2EE/{file_id}", response_model=DownloadResponse)
+@require_permissions(["download_file"])
 def download_encrypted_file(
     file_id: str,
     current_user_data: Tuple[User, str] = Depends(get_current_user),
@@ -143,6 +146,7 @@ def download_encrypted_file(
     
 
 @router.patch("/files/{file_id}/recipients")
+@require_permissions(["share_file"])
 def update_recipients(
     file_id: str,
     data: UpdateRecipients,

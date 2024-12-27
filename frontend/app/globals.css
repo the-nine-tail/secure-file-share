@@ -12,7 +12,6 @@ body {
   width: 100vw;
   height: 100vh;
   overflow-x: hidden;
-  overflow-y: hidden;
   background-color: #FFFFFF;
 }
 
@@ -30,15 +29,29 @@ body {
   flex-direction: column;
 }
 
+#portal-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  pointer-events: none;
+}
+
 #portal-root.inactive {
   display: none;
 }
 
 #portal-root.active {
   display: block;
+  pointer-events: auto;
+}
+
+/* Make sure modal content is always visible */
+#portal-root > * {
   width: 100vw;
   height: 100vh;
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: relative;
+  z-index: 1001;
 }

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Dict, Optional
 
 class FileMetadata(BaseModel):
     filename: str
@@ -32,7 +32,7 @@ class FileResponse(BaseModel):
 class UploadData(BaseModel):
     owner: str
     encryptedFileB64: str
-    recipients: dict
+    recipients: Dict[str, str]
     file_metadata: FileMetadata
 
 
