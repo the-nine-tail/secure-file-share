@@ -4,6 +4,7 @@ from apis.users import router as users_router
 from apis.files import router as files_router
 from auth.auth_handler import AuthHandler
 from database.init_db import init_db
+from dependencies.auth import get_current_user
 
 app = FastAPI()
 auth_handler = AuthHandler()
@@ -18,14 +19,18 @@ origins = [
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # In production, replace with specific origins
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(users_router)
-app.include_router(files_router, dependencies=[Depends(auth_handler.auth_wrapper)])
+# Now files_router requires authentication AND automatically gets user data
+app.include_router(
+    files_router,
+    dependencies=[Depends(get_current_user)]
+)
 
 @app.get("/")
 def read_root():

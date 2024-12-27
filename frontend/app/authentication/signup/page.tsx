@@ -1,15 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { QRCodeSVG } from 'qrcode.react'
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   BodyExtraLargeSemiBold, 
   BodySecondaryMedium,
   BodyPrimarySemiBold,
   Input,
 } from '~/app/global-style'
-import { InputType } from '~/app/ui-components/input'
+import { InputType } from '~/app/ui-components/input';
 import {
   Container,
   FormContainer,
@@ -17,15 +17,11 @@ import {
   QRCodeContainer,
   ErrorText,
   LinkText
-} from './style'
-import Button from '~/app/ui-components/button/button'
-import { ThemeProvider } from 'styled-components'
-import { Theme } from '~/app/theme'
-import { StringUtils } from '~/app/utils/string-utils'
-
-// "hashed_password": "$2b$12$jV3nDxzqgI9gkA42mHmc7uqpX/XDYiSyue6BAY8zN25Km2hTMruca",
-// "mfa_secret": "5SWTOLGKMENMY3R6Y435HGFJ3OVGWVTI",
-// "mfa_uri": "otpauth://totp/SecureFileShare:suroliasahdev%40gmail.com?secret=5SWTOLGKMENMY3R6Y435HGFJ3OVGWVTI&issuer=SecureFileShare"
+} from './style';
+import Button from '~/app/ui-components/button/button';
+import { ThemeProvider } from 'styled-components';
+import { Theme } from '~/app/theme';
+import { apiUrl } from '~/app/constants/authConstant';
 
 interface SignupFormData {
   full_name: string
@@ -60,7 +56,7 @@ export default function SignupPage() {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:8000/signup', {
+      const response = await fetch(`${apiUrl}/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,7 +81,7 @@ export default function SignupPage() {
 
   const handleMfaActivation = async () => {
     try {
-      const response = await fetch('http://localhost:8000/activate-mfa', {
+      const response = await fetch(`${apiUrl}/activate-mfa`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,42 +1,45 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { ThemeProvider } from 'styled-components'
-import { Theme } from '~/app/theme'
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ThemeProvider } from 'styled-components';
+import { Theme } from '~/app/theme';
 import { 
   BodyExtraLargeSemiBold, 
   BodySecondaryMedium,
   Input
-} from '~/app/global-style'
-import { InputType } from '~/app/ui-components/input'
+} from '~/app/global-style';
+import { InputType } from '~/app/ui-components/input';
 import {
   Container,
   FormContainer,
   Form,
   ErrorText,
   LinkText
-} from './style'
-import Button from '~/app/ui-components/button/button'
-import { useAuth } from '~/app/context/AuthContext'
+} from './style';
+import Button from '~/app/ui-components/button/button';
+import { useAuth } from '~/app/context/AuthContext';  
+import { useAppSelector } from '~/app/store/hooks';
+import { authService } from '~/app/services/authService';
 
 interface LoginFormData {
-  email: string
-  password: string
-  mfa_code?: string
+  email: string;
+  password: string;
+  mfa_code?: string;
 }
 
 export default function LoginPage() {
-  const router = useRouter()
-  const { login } = useAuth()
+  const router = useRouter();
+  const { login } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
     mfa_code: '',
   })
-  const [requiresMfa, setRequiresMfa] = useState(false)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [requiresMfa, setRequiresMfa] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { isLoading } = useAppSelector(state => state.auth);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -44,7 +47,7 @@ export default function LoginPage() {
       ...prev,
       [name]: value,
     }))
-    setError('')
+    setError('');
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,33 +56,20 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8000/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Login failed')
-      }
+      const data = await authService.login(formData);
 
       if (data.requires_mfa && !formData.mfa_code) {
-        setRequiresMfa(true)
-        setLoading(false)
-        return
+        setRequiresMfa(true);
+        setLoading(false);
+        return;
       }
 
-      login(data)
-      router.push('/dashboard')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      await login(data);
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message ?? 'An error occurred');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 

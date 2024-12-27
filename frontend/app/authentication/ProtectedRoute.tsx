@@ -1,28 +1,43 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '~/app/context/AuthContext'
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation';
+import { useAppSelector } from '../store/hooks';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, checkAuth } = useAuth()
-  const router = useRouter()
+  const { isAuthenticated, isLoading } = useAppSelector(state => state.auth);
+  const { checkAuth } = useAuth();
+  const router = useRouter();
+  const authCheckAttempted = useRef(false);
 
   useEffect(() => {
     const verifyAuth = async () => {
-      if (!isLoading) {
-        const isAuthed = await checkAuth()
+      // Only check if not authenticated and haven't attempted yet
+      if (!isAuthenticated && !authCheckAttempted.current) {
+        authCheckAttempted.current = true;
+        const isAuthed = await checkAuth();
         if (!isAuthed) {
-          router.push('/authentication/login')
+          router.push('/authentication/login');
         }
       }
-    }
-    verifyAuth()
-  }, [isLoading, checkAuth, router])
+    };
+
+    verifyAuth();
+  }, [checkAuth, isAuthenticated, router]);
 
   if (isLoading) {
-    return <div>Loading...</div>
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        Loading...
+      </div>
+    );
   }
 
-  return isAuthenticated ? <>{children}</> : null
+  return isAuthenticated ? <>{children}</> : null;
 } 

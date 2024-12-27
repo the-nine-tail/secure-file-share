@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { WorkSansRegular } from "./ui-components/typing/fonts";
-import { AuthProvider } from "./context/AuthContext";
+import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: "Secure File Share",
@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={WorkSansRegular.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '~/app/context/AuthContext'
+import { useRouter } from 'next/navigation';
+import { useAppSelector } from '../store/hooks';
 
 export default function AuthenticationPage() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading } = useAppSelector(state => state.auth);
   const router = useRouter()
 
   useEffect(() => {

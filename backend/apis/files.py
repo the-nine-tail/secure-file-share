@@ -3,8 +3,10 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request, Depends
 from sqlalchemy.orm import Session
 from database.config import get_db
-from database.models import EncryptedFileShare, File, PublicKeyMapping
-from models.file import DownloadResponse, FileMetadata, FileResponse, PublicKeyUpload, UpdateRecipients, UploadData
+from database.models import EncryptedFileShare, File, PublicKeyMapping, User
+from models.file import DownloadResponse, FileResponse, PublicKeyUpload, UpdateRecipients, UploadData
+from dependencies.auth import get_current_user
+from typing import Tuple
 
 router = APIRouter()
 DATA_FOLDER = "uploaded_encrypted_files"
@@ -43,8 +45,15 @@ def get_public_key(user_email: str, db: Session = Depends(get_db)):
 @router.post("/uploadEncryptedE2EE", response_model=FileResponse)
 def upload_encrypted_file(
     data: UploadData,
+    current_user_data: Tuple[User, str] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    current_user, user_email = current_user_data
+    
+    # Verify the owner is the current user
+    if data.owner.lower().strip() != user_email:
+        raise HTTPException(status_code=403, detail="Can only upload files as yourself")
+    
     file_id = str(uuid.uuid4())
     file_metadata = data.file_metadata
 
@@ -91,28 +100,22 @@ def upload_encrypted_file(
 
 @router.get("/downloadEncryptedE2EE/{file_id}", response_model=DownloadResponse)
 def download_encrypted_file(
-    file_id: str, 
-    request: Request, 
+    file_id: str,
+    current_user_data: Tuple[User, str] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    current_user, user_email = current_user_data
+    
     try:
-
-        user_email = request.query_params.get("user_email")
-        if not user_email:
-            raise HTTPException(status_code=400, detail="user_email query param required.")
-
-        user_email = user_email.lower().strip()
-        print("file_id", file_id)
+        # Use the authenticated user's email instead of query param
         file_entry = db.query(EncryptedFileShare).filter(EncryptedFileShare.file_id == file_id).first()
-        print("file_entry", file_entry)
         if not file_entry:
             raise HTTPException(status_code=404, detail="File not found.")
 
         # Check if user is a recipient or the owner
         if user_email not in file_entry.encrypted_keys and user_email != file_entry.owner_email:
-            print(file_entry.encrypted_keys)
             raise HTTPException(status_code=403, detail="You are not a recipient of this file.")
-
+            
         file_path = os.path.join(DATA_FOLDER, f"{file_id}.enc")
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="File not found.")
@@ -143,16 +146,18 @@ def download_encrypted_file(
 def update_recipients(
     file_id: str,
     data: UpdateRecipients,
-    current_user_email: str = "suroliasahdev@gmail.com", # e.g. from JWT
+    current_user_data: Tuple[User, str] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    current_user, user_email = current_user_data
+    
     # 1) Fetch the file entry
     file_entry = db.query(EncryptedFileShare).filter(EncryptedFileShare.file_id == file_id).first()
     if not file_entry:
         raise HTTPException(status_code=404, detail="File not found.")
 
     # 2) Check if current_user is the owner
-    if file_entry.owner_email != current_user_email.lower().strip():
+    if file_entry.owner_email != user_email:
         raise HTTPException(status_code=403, detail="Only owner can update recipients.")
 
     # 3) Update the existing dictionary of encrypted_keys

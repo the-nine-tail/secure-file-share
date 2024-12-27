@@ -1,14 +1,13 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ThemeProvider } from 'styled-components'
-import { Theme } from '../theme'
+import { useAppDispatch, useAppSelector } from '../store/hooks'
+import { setUser, clearUser, setLoading } from '../store/slices/authSlice'
+import { authService } from '../services/authService'
 
 interface AuthContextType {
-  isAuthenticated: boolean
-  isLoading: boolean
-  login: (tokens: { access_token: string; refresh_token: string }) => void
+  login: (tokens: { access_token: string; refresh_token: string }) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<boolean>
 }
@@ -16,76 +15,81 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, isLoading } = useAppSelector(state => state.auth);
+  const router = useRouter();
+  const authCheckRef = useRef(false);
 
-  const checkAuth = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/get-user', {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      console.log(response);
-      
-      if (response.ok) {
-        setIsAuthenticated(true)
-        return true
-      } 
-      
-      // If not authenticated, try refresh token
-      const refreshResponse = await fetch('http://localhost:8000/refresh', {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (refreshResponse.ok) {
-        setIsAuthenticated(true)
-        return true
-      }
-      
-      setIsAuthenticated(false)
-      return false
-    } catch (error) {
-      console.error('Auth check failed:', error)
-      setIsAuthenticated(false)
-      return false
+  const checkAuth = useCallback(async () => {
+    // Skip if we're already loading or have checked auth
+    if (isLoading || authCheckRef.current) {
+      return isAuthenticated;
     }
-  }
+
+    try {
+      dispatch(setLoading(true));
+      const userData = await authService.getCurrentUser();
+      dispatch(setUser(userData));
+      authCheckRef.current = true;
+      return true;
+    } catch (error) {
+      try {
+        await authService.refreshToken();
+        const userData = await authService.getCurrentUser();
+        dispatch(setUser(userData));
+        authCheckRef.current = true;
+        return true;
+      } catch (refreshError) {
+        dispatch(clearUser());
+        return false;
+      }
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch, isAuthenticated, isLoading]);
 
   const login = async (tokens: { access_token: string; refresh_token: string }) => {
-    setIsAuthenticated(true)
-    await checkAuth() // Verify the auth state after login
-  }
+    try {
+      dispatch(setLoading(true));
+      const userData = await authService.getCurrentUser();
+      dispatch(setUser(userData));
+      authCheckRef.current = true;
+    } catch (error) {
+      console.error('Error setting user after login:', error);
+      dispatch(clearUser());
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:8000/logout', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      await authService.logout();
     } finally {
-      setIsAuthenticated(false)
-      router.push('/authentication/login')
+      dispatch(clearUser());
+      authCheckRef.current = false;
+      router.push('/authentication/login');
     }
-  }
+  };
 
   useEffect(() => {
-    checkAuth().finally(() => setIsLoading(false))
-  }, [])
+    // Only check auth once on mount if not authenticated
+    if (!isAuthenticated && !authCheckRef.current) {
+      checkAuth();
+    }
+  }, []); // Empty dependency array for mount only
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout, checkAuth }}>
-      <ThemeProvider theme={Theme}>{children}</ThemeProvider>
+    <AuthContext.Provider value={{ login, logout, checkAuth }}>
+      {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context
-} 
+  return context;
+}

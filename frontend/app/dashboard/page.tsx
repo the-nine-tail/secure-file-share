@@ -1,9 +1,10 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { BodyPrimaryRegular } from "../ui-components/typing";
 import { MainPageStyle } from "./style";
 import ProtectedRoute from "../authentication/ProtectedRoute";
 import { StringUtils } from "../utils/string-utils";
+import { useAppSelector } from "../store/hooks";
+import { apiUrl } from "../constants/authConstant";
 
 function validateEncryptedData(encryptedData: ArrayBuffer) {
   // GCM mode requires at least 16 bytes for the auth tag
@@ -15,7 +16,7 @@ function validateEncryptedData(encryptedData: ArrayBuffer) {
 
 async function getPublicKeyFromServer(userEmail: string): Promise<CryptoKey> {
   // 1) fetch the base64 key from /getPublicKey
-  const res = await fetch(`http://localhost:8000/getPublicKey/${userEmail}`, {
+  const res = await fetch(`${apiUrl}/getPublicKey/${userEmail}`, {
     credentials: 'include',
   });
   if (!res.ok) {
@@ -37,21 +38,23 @@ async function getPublicKeyFromServer(userEmail: string): Promise<CryptoKey> {
 }
 
 const DashboardPage: React.FC = () => {
-  // 7cae8974-e66f-458a-a60a-7b1722f067e1
+  const { user } = useAppSelector(state => state.auth);
   const [file, setFile] = useState<File | null>(null);
-  const [myEmail, setMyEmail] = useState();
+  const [myEmail, setMyEmail] = useState<string | null>(user?.email ?? null);
   const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
-  const [publicKeyPem, setPublicKeyPem] = useState("");
-  const [shareWith, setShareWith] = useState("iamsadu.s@gmail.com");
+  const [shareWith, setShareWith] = useState<string | null>(null);
   const [downloadFileId, setDownloadFileId] = useState("");
   const [selectedFileId, setSelectedFileId] = useState("");
   const [newShareEmail, setNewShareEmail] = useState("");
   const [removeShareEmail, setRemoveShareEmail] = useState("");
 
-  // useEffect(() => {
-  //   loadOrGenerateKeyPair(myEmail).catch(console.error);
-  // }, [myEmail]);
+  useEffect(() => {
+    if (user?.email) {
+      setMyEmail(user.email);
+      loadOrGenerateKeyPair(user.email).catch(console.error);
+    }
+  }, [user?.email]);
 
   // -------------------- Key Pair Management --------------------
   async function loadOrGenerateKeyPair(userEmail: string) {
@@ -111,7 +114,7 @@ const DashboardPage: React.FC = () => {
 
   async function registerPublicKeyOnServer(userEmail: string, pubKeyBuf: ArrayBuffer) {
     const pubB64 = StringUtils.arrayBufferToBase64(pubKeyBuf);
-    const res = await fetch("http://localhost:8000/registerPublicKey", {
+    const res = await fetch(`${apiUrl}/registerPublicKey`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: 'include',
@@ -219,7 +222,7 @@ const DashboardPage: React.FC = () => {
         metadata.width = dimensions.width;
       }
 
-      const res = await fetch("http://localhost:8000/uploadEncryptedE2EE", {
+      const res = await fetch(`${apiUrl}/uploadEncryptedE2EE`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
@@ -256,7 +259,7 @@ const DashboardPage: React.FC = () => {
     try {
       // 1) Fetch the encrypted file & key from the server
       // Notice we pass ?user_email=... so the server knows which key to return
-      const url = `http://localhost:8000/downloadEncryptedE2EE/${downloadFileId}?user_email=${"iamsadu.s@gmail.com"}`;
+      const url = `${apiUrl}/downloadEncryptedE2EE/${downloadFileId}`;
       const res = await fetch(url, {
         credentials: 'include',
       });
@@ -345,7 +348,7 @@ const DashboardPage: React.FC = () => {
 
     try {
       // 1. Get my encrypted AES key from the server
-      const url = `http://localhost:8000/downloadEncryptedE2EE/${selectedFileId}?user_email=${myEmail}`;
+      const url = `${apiUrl}/downloadEncryptedE2EE/${selectedFileId}?user_email=${myEmail}`;
       const res = await fetch(url, {
         credentials: 'include',
       });
@@ -389,7 +392,7 @@ const DashboardPage: React.FC = () => {
       }
 
       // 5. Send the update to the server
-      const updateRes = await fetch(`http://localhost:8000/files/${selectedFileId}/recipients`, {
+      const updateRes = await fetch(`${apiUrl}/files/${selectedFileId}/recipients`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
