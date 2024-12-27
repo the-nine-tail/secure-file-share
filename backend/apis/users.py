@@ -105,9 +105,8 @@ async def login(response: Response, user_data: UserLogin, db: Session = Depends(
     )
 
 @router.post("/activate-mfa")
-async def activate_mfa(request: Request, db: Session = Depends(get_db)):
-    token_data = auth_handler.auth_wrapper(request)
-    user_email = token_data["sub"]
+def activate_mfa(payload: dict, db: Session = Depends(get_db)):
+    user_email = payload.get("email").lower().strip();
     
     user = db.query(User).filter(User.email == user_email).first()
     if not user:
@@ -163,7 +162,7 @@ async def logout(response: Response):
     return {"message": "Successfully logged out"}
 
 @router.get("/get-user", response_model=UserData)
-async def protected_route(
+async def get_user(
     request: Request,
     db: Session = Depends(get_db)
 ):

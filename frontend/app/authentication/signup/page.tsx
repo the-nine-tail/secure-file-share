@@ -21,6 +21,7 @@ import {
 import Button from '~/app/ui-components/button/button'
 import { ThemeProvider } from 'styled-components'
 import { Theme } from '~/app/theme'
+import { StringUtils } from '~/app/utils/string-utils'
 
 // "hashed_password": "$2b$12$jV3nDxzqgI9gkA42mHmc7uqpX/XDYiSyue6BAY8zN25Km2hTMruca",
 // "mfa_secret": "5SWTOLGKMENMY3R6Y435HGFJ3OVGWVTI",
@@ -89,7 +90,7 @@ export default function SignupPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
+        body: JSON.stringify({ email: formData.email }),
       })
 
       if (!response.ok) {

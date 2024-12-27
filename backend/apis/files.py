@@ -12,11 +12,115 @@ from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from sqlalchemy.orm import Session
 from database.config import get_db
-from database.models import File
-from models.file import FileMetadata, FileResponse
+from database.models import EncryptedFileShare, File, PublicKeyMapping
+from models.file import DownloadResponse, FileMetadata, FileResponse, PublicKeyUpload, UploadData
 
 router = APIRouter()
 DATA_FOLDER = "uploaded_data"
+
+@router.post("/registerPublicKey")
+async def register_public_key(
+    data: PublicKeyUpload,
+    db: Session = Depends(get_db)
+):
+    user_email = data.user_email.lower().strip()
+    print("user_email", user_email)
+    print("public_key_b64", data.public_key_b64)
+    db_file = PublicKeyMapping(
+        email=user_email,
+        public_key=data.public_key_b64,
+    )
+        
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+
+    return {"message": f"Public key for {user_email} stored successfully."}
+
+@router.get("/getPublicKey/{user_email}")
+def get_public_key(user_email: str, db: Session = Depends(get_db)):
+    user_email = user_email.lower().strip()
+    public_key = db.query(PublicKeyMapping).filter(PublicKeyMapping.email == user_email).first()
+    if not public_key:
+        raise HTTPException(status_code=404, detail="User's public key not found.")
+    return {"public_key_b64": public_key.public_key}
+
+@router.post("/uploadEncryptedE2EE", response_model=FileResponse)
+def upload_encrypted_file(
+    data: UploadData,
+    db: Session = Depends(get_db)
+):
+    file_id = str(uuid.uuid4())
+
+    encrypted_files_db = EncryptedFileShare(
+        file_id=file_id,
+        owner_email=data.owner.lower().strip(),
+        encrypted_content=data.encryptedFileB64,
+        encrypted_keys=data.recipients
+    )
+
+    db.add(encrypted_files_db)
+    db.commit()
+    db.refresh(encrypted_files_db)
+
+    return FileResponse(fileId=file_id, message="File uploaded successfully (E2EE).")
+
+
+@router.get("/downloadEncryptedE2EE/{file_id}", response_model=DownloadResponse)
+def download_encrypted_file(
+    file_id: str, 
+    request: Request, 
+    db: Session = Depends(get_db)
+):
+    try:
+
+        user_email = request.query_params.get("user_email")
+        if not user_email:
+            raise HTTPException(status_code=400, detail="user_email query param required.")
+
+        user_email = user_email.lower().strip()
+        file_entry = db.query(EncryptedFileShare).filter(EncryptedFileShare.file_id == file_id).first()
+        if not file_entry:
+            raise HTTPException(status_code=404, detail="File not found.")
+
+        # Check if user is a recipient or the owner
+        if user_email not in file_entry.encrypted_keys and user_email != file_entry.owner_email:
+            raise HTTPException(status_code=403, detail="You are not a recipient of this file.")
+
+        encryptedFileB64 = file_entry.encrypted_content
+        if user_email in file_entry.encrypted_keys:
+            encryptedKeyB64 = file_entry.encrypted_keys[user_email]
+        else:
+            # If the user is the owner but not in recipients, error out or handle gracefully
+            raise HTTPException(
+                status_code=403,
+                detail="Owner not in recipients list. Possibly a logic error in the front-end."
+            )
+
+        return DownloadResponse(
+            encryptedFileB64=encryptedFileB64,
+            encryptedKeyB64=encryptedKeyB64
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e.__str__()))
+
+@router.get("/listFiles")
+def list_files(
+    request: Request, 
+    db: Session = Depends(get_db)
+):
+    """ Utility to see what's stored. Not secure, just for debugging. """
+    result = []
+    for file_id, entry in db.query(EncryptedFileShare).all():
+        result.append({
+            "file_id": file_id,
+            "owner": entry.owner_email,
+            "recipients": list(entry.encrypted_keys.keys()),
+            "filename": entry.metadata["filename"],
+        })
+    return result
+
+
 
 def generate_rsa_keypair():
     private_key = rsa.generate_private_key(

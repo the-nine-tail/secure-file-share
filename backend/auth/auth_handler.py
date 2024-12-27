@@ -45,7 +45,7 @@ class AuthHandler:
         try:
             secret = self.refresh_secret if is_refresh_token else self.secret
             payload = jwt.decode(token, secret, algorithms=[self.algorithm])
-            
+            print("payload", payload)
             if is_refresh_token and payload.get("type") != "refresh":
                 raise HTTPException(status_code=401, detail="Invalid refresh token")
                 

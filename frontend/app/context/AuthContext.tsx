@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuth = async () => {
     try {
       const response = await fetch('http://localhost:8000/get-user', {
+        method: 'GET',
         credentials: 'include',
       })
 
