@@ -119,7 +119,7 @@ export default function LoginPage() {
             />
 
             <BodySecondaryMedium style={{ textAlign: 'center' }}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <LinkText onClick={() => router.push('/authentication/signup')}>
                 Sign Up
               </LinkText>
