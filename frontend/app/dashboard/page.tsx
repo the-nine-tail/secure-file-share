@@ -10,7 +10,7 @@ import { Modal } from "../ui-components/state-modal";
 import { LOADING_MODAL } from "../constants/constant";
 import { BodyPrimaryRegular, BodySecondaryRegular } from "../ui-components/typing";
 import Button from "../ui-components/button/button";
-import { ShareModal, ShareModalFormData } from '~/app/ui-components/share-modal';
+import { RecipientAccess, ShareModal, ShareModalFormData } from '~/app/ui-components/share-modal';
 
 
 function validateEncryptedData(encryptedData: ArrayBuffer) {
@@ -51,8 +51,6 @@ const DashboardPage: React.FC = () => {
   const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
   const [shareWith, setShareWith] = useState<string>("");
-  const [newShareEmail, setNewShareEmail] = useState("");
-  const [removeShareEmail, setRemoveShareEmail] = useState("");
   const [modalProps, setModalProps] = useState<string | null>(null);
   const [files, setFiles] = useState<Array<FileTable>>([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -205,76 +203,78 @@ const DashboardPage: React.FC = () => {
       combined.set(new Uint8Array(encryptedFileBuf), iv.byteLength);
       const encryptedFileB64 = StringUtils.arrayBufferToBase64(combined.buffer);
 
-      // 4) For each recipient (including me, so I can re-download), encrypt the same AES key
-      //    with that recipient's public key
-      const recipientsObj: Record<string, string> = {};
+      // 4) For each recipient (including me), encrypt the same AES key
+      const recipientsObj: Record<string, RecipientAccess> = {};
       const shareEmails = shareWith.split(",").map(e => e.trim().toLowerCase());
-      // Always include "myEmail" so the owner can decrypt later
-      console.log("shareEmails", shareEmails);
-      if (!shareEmails.includes(myEmail.toLowerCase())) {
+
+      if (myEmail && !shareEmails.includes(myEmail.toLowerCase())) {
         shareEmails.push(myEmail.toLowerCase());
       }
+      
+      try {
+        const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
 
-      // Export the raw AES key
-      const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+        // Encrypt for other recipients
+        for (const recipientEmail of shareEmails) {
+          if (!recipientEmail) continue;
 
-      // For each user in shareEmails:
-      if (shareEmails.length > 0) {
-        for (const user of shareEmails) {
-          if (!user) continue;
-          // Fetch user’s public key from server
-          const userPublicKey = await getPublicKeyFromServer(user);
-          console.log("userPublicKey", userPublicKey);
-          // Encrypt rawAesKey with userPublicKey (RSA-OAEP)
+          const recipientPubKey = await getPublicKeyFromServer(recipientEmail);
           const encryptedAesKeyBuf = await window.crypto.subtle.encrypt(
             { name: "RSA-OAEP" },
-            userPublicKey,
+            recipientPubKey,
             rawAesKey
           );
-          const encryptedAesKeyB64 = StringUtils.arrayBufferToBase64(encryptedAesKeyBuf);
-          recipientsObj[user] = encryptedAesKeyB64;
-        } 
+          
+          recipientsObj[recipientEmail] = {
+            key: StringUtils.arrayBufferToBase64(encryptedAesKeyBuf),
+            permission: 'view',
+            expires_at: 0
+          };
+        }
+
+        // Get file metadata
+        const metadata = {
+          filename: _file.name,
+          filesize: _file.size,
+          filetype: _file.type,
+          extension: _file.name.split('.').pop() || '',
+          height: null as number | null,
+          width: null as number | null,
+        };
+
+        // If it's an image, get dimensions
+        if (_file.type.startsWith('image/')) {
+          const dimensions = await getImageDimensions(_file);
+          metadata.height = dimensions.height;
+          metadata.width = dimensions.width;
+        }
+
+        const response = await fetch(`${apiUrl}/uploadEncryptedE2EE`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            owner: myEmail,
+            encryptedFileB64: encryptedFileB64,
+            recipients: recipientsObj,
+            file_metadata: metadata
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Upload failed');
+        }
+
+        const result = await response.json();
+        console.log('Upload successful:', result);
+        setModalProps("upload_success");
+      } catch (error) {
+        console.error("Error in encryption:", error);
+        throw error;
       }
-
-      // Get file metadata
-      const metadata = {
-        filename: _file.name,
-        filesize: _file.size,
-        filetype: _file.type,
-        extension: _file.name.split('.').pop() || '',
-        height: null as number | null,
-        width: null as number | null,
-      };
-
-      // If it's an image, get dimensions
-      if (_file.type.startsWith('image/')) {
-        const dimensions = await getImageDimensions(_file);
-        metadata.height = dimensions.height;
-        metadata.width = dimensions.width;
-      }
-
-      const response = await fetch(`${apiUrl}/uploadEncryptedE2EE`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          owner: myEmail,
-          encryptedFileB64: encryptedFileB64,
-          recipients: recipientsObj,
-          file_metadata: metadata
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Upload failed');
-      }
-
-      const result = await response.json();
-      console.log('Upload successful:', result);
-      setModalProps("upload_success");
     } catch (error) {
       console.error("Error in handleEncryptAndUpload:", error);
       setModalProps("upload_failed");
@@ -283,28 +283,26 @@ const DashboardPage: React.FC = () => {
 
   // -------------------- Download & Decrypt --------------------
   async function handleDownloadAndDecrypt(downloadFileId: string) {
-    if (!downloadFileId) {
-      alert("No fileId specified.");
-      return;
-    }
-    if (!privateKey) {
-      alert("No private key loaded for user.");
-      return;
-    }
     try {
-      // 1) Fetch the encrypted file & key from the server
-      // Notice we pass ?user_email=... so the server knows which key to return
-      const url = `${apiUrl}/downloadEncryptedE2EE/${downloadFileId}`;
-      const res = await fetch(url, {
+      if (!downloadFileId) {
+        alert("No fileId specified.");
+        return;
+      }
+      if (!privateKey) {
+        alert("No private key loaded for user.");
+        return;
+      }
+
+      const res = await fetch(`${apiUrl}/downloadEncryptedE2EE/${downloadFileId}`, {
         credentials: 'include',
       });
+
       if (!res.ok) {
         throw new Error(await res.text());
-      } // 0d43f6e6-e97a-4076-b68b-78b26f13adfc
-      const { encryptedFileB64, encryptedKeyB64, file_metadata } = await res.json();
-      console.log("file_metadata", file_metadata);
-      
+      }
 
+      const { encryptedFileB64, encryptedKeyB64, file_metadata } = await res.json();
+      
       // 2) Decrypt the ephemeral AES key with my private key
       const encAesKeyBuf = StringUtils.base64ToArrayBuffer(encryptedKeyB64);
       const rawAesKey = await window.crypto.subtle.decrypt(
@@ -353,6 +351,8 @@ const DashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Error in handleDownloadAndDecrypt:", error);
       alert(String(error));
+    } finally {
+      setModalProps(null);
     }
   }
 
@@ -401,24 +401,24 @@ const DashboardPage: React.FC = () => {
       );
 
       // Prepare the update payload
-      const addedKeys: Record<string, string> = {};
+      const addedKeys: Record<string, RecipientAccess> = {};
       const removedUsers: string[] = [];
 
       // Handle new share recipient
       if (data.newUserEmail) {
-        // 3. Get the new recipient's public key
         const newUserPublicKey = await getPublicKeyFromServer(data.newUserEmail);
         
-        // 4. Encrypt the AES key for the new recipient
         const encryptedAesKeyBuf = await window.crypto.subtle.encrypt(
           { name: "RSA-OAEP" },
           newUserPublicKey,
           rawAesKey
         );
-        const encryptedAesKeyB64 = StringUtils.arrayBufferToBase64(encryptedAesKeyBuf);
         
-        // Add to the payload
-        addedKeys[data.newUserEmail] = encryptedAesKeyB64;
+        addedKeys[data.newUserEmail] = {
+          key: StringUtils.arrayBufferToBase64(encryptedAesKeyBuf),
+          permission: data.permissionType,
+          expires_at: data.expiryHours ? Math.floor(Date.now() / 1000) + data.expiryHours * 60 : 0
+        };
       }
 
       // Handle removal if specified

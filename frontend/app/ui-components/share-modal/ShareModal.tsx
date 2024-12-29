@@ -30,7 +30,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
     newUserEmail: '',
     removeUserEmail: '',
     permissionType: 'view',
-    expiryHours: 24
+    expiryHours: 0
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -135,7 +135,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
               id="expiryHours"
               name="expiryHours"
               type="number"
-              min="1"
+              min="0"
               max="720"
               value={formData.expiryHours}
               onChange={handleChange}

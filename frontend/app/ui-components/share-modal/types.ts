@@ -10,4 +10,10 @@ export interface ShareModalFormData {
   removeUserEmail: string;
   permissionType: 'view' | 'download';
   expiryHours: number;
+}
+
+export interface RecipientAccess {
+  key: string;
+  permission: string;
+  expires_at: number;
 } 

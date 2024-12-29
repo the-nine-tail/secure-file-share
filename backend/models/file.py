@@ -32,10 +32,14 @@ class FileResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
+class RecipientAccess(BaseModel):
+    key: str
+    permission: str
+    expires_at: Optional[int] = None
 class UploadData(BaseModel):
     owner: str
     encryptedFileB64: str
-    recipients: Dict[str, str]
+    recipients: Dict[str, RecipientAccess]
     file_metadata: FileMetadata
 
 
@@ -46,7 +50,7 @@ class DownloadResponse(BaseModel):
 
 
 class UpdateRecipients(BaseModel):
-    added_keys: dict
+    added_keys: Dict[str, RecipientAccess]
     removed_users: list[str] = []
 
 

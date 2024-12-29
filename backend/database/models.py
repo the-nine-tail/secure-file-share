@@ -41,11 +41,11 @@ class PublicKeyMapping(Base):
 
 
 class EncryptedFileShare(Base):
-    __tablename__ = "encrypted_file_shares"
-    
+    __tablename__ = "encrypted_files"
+
     file_id = Column(String, primary_key=True)
-    owner_email = Column(String, ForeignKey("users.email"), nullable=False)
-    encrypted_keys = Column(JSON, nullable=False)  # Dictionary of recipient emails to their encrypted AES keys
-    file_metadata = Column(JSON, nullable=False)  # File metadata
+    owner_email = Column(String, nullable=False)
+    encrypted_keys = Column(JSON, nullable=False) # Format: { "email@example.com": { "key": "encrypted_key_base64", "permission": "view|download", "expires_at": "1735465000" } }
+    file_metadata = Column(JSON, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

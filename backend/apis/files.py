@@ -8,7 +8,7 @@ from database.config import get_db
 from database.models import EncryptedFileShare, File, PublicKeyMapping, User
 from models.file import DownloadResponse, FileResponse, PublicKeyUpload, UpdateRecipients, UploadData, FileListResponse
 from dependencies.auth import get_current_user
-from typing import Tuple, List
+from typing import Tuple
 
 router = APIRouter()
 DATA_FOLDER = "uploaded_encrypted_files"
@@ -59,12 +59,21 @@ def upload_encrypted_file(
     
     file_id = str(uuid.uuid4())
     file_metadata = data.file_metadata
-    print("data.recipients", data.recipients)
+    
+    # Convert RecipientAccess models to dictionaries
+    recipients_dict = {
+        email: {
+            "key": access.key,
+            "permission": access.permission,
+            "expires_at": access.expires_at
+        }
+        for email, access in data.recipients.items()
+    }
 
     encrypted_files_db = EncryptedFileShare(
         file_id=file_id,
         owner_email=data.owner.lower().strip(),
-        encrypted_keys=data.recipients,
+        encrypted_keys=recipients_dict,
         file_metadata=file_metadata.model_dump()
     )
 
@@ -116,7 +125,6 @@ def download_encrypted_file(
     current_user, user_email = current_user_data
     
     try:
-        # Use the authenticated user's email instead of query param
         file_entry = db.query(EncryptedFileShare).filter(EncryptedFileShare.file_id == file_id).first()
         if not file_entry:
             raise HTTPException(status_code=404, detail="File not found.")
@@ -125,6 +133,14 @@ def download_encrypted_file(
         if user_email not in file_entry.encrypted_keys and user_email != file_entry.owner_email:
             raise HTTPException(status_code=403, detail="You are not a recipient of this file.")
             
+        # Check permission if user is not the owner
+        if user_email != file_entry.owner_email:
+            recipient_access = file_entry.encrypted_keys[user_email]
+            if recipient_access["permission"] != "download":
+                raise HTTPException(status_code=403, detail="You don't have download permission for this file.")
+            if recipient_access["expires_at"] and recipient_access["expires_at"] < int(datetime.now().timestamp()):
+                raise HTTPException(status_code=403, detail="This file has expired.")
+
         file_path = os.path.join(DATA_FOLDER, f"{file_id}.enc")
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="File not found.")
@@ -134,9 +150,8 @@ def download_encrypted_file(
             encryptedFileB64 = f.read()
 
         if user_email in file_entry.encrypted_keys:
-            encryptedKeyB64 = file_entry.encrypted_keys[user_email]
+            encryptedKeyB64 = file_entry.encrypted_keys[user_email]["key"]
         else:
-            # If the user is the owner but not in recipients, error out or handle gracefully
             raise HTTPException(
                 status_code=403,
                 detail="Owner not in recipients list. Possibly a logic error in the front-end."
@@ -148,7 +163,7 @@ def download_encrypted_file(
             file_metadata=file_entry.file_metadata
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e.__str__()))
+        raise HTTPException(status_code=500, detail=str(e))
     
 
 @router.patch("/files/{file_id}/recipients")
@@ -171,18 +186,22 @@ def update_recipients(
         raise HTTPException(status_code=403, detail="Only owner can update recipients.")
 
     # 3) Update the existing dictionary of encrypted_keys
-    print("old encrypted_keys", file_entry.encrypted_keys)
-    updated_keys = dict(file_entry.encrypted_keys)  # a dict
-    # Add new recipients
-    for user_email, encKey in data.added_keys.items():
-        updated_keys[user_email.lower().strip()] = encKey
+    updated_keys = dict(file_entry.encrypted_keys)  # Create a copy of the existing keys
+
+    # Convert RecipientAccess models to dictionaries for new recipients
+    for user_email, access in data.added_keys.items():
+        updated_keys[user_email.lower().strip()] = {
+            "key": access.key,
+            "permission": access.permission,
+            "expires_at": access.expires_at
+        }
+
     # Remove recipients
     for user_email in data.removed_users:
         user_email = user_email.lower().strip()
         if user_email in updated_keys:
             del updated_keys[user_email]
 
-    print("updated_keys", updated_keys)
     file_entry.encrypted_keys = updated_keys
     db.commit()
     db.refresh(file_entry)
@@ -199,20 +218,6 @@ def get_files(
         current_user, user_email = current_user_data
         
         files = db.query(File).filter().all()
-        
-        # Get files shared with the user
-        # shared_files_query = (
-        #     db.query(File)
-        #     .join(EncryptedFileShare, File.file_id == EncryptedFileShare.file_id)
-        #     .filter(
-        #         EncryptedFileShare.encrypted_keys.has_key(user_email)  # type: ignore
-        #     )
-        # )
-        # shared_files = shared_files_query.all()
-        
-        # # Combine and deduplicate files
-        # all_files = {file.file_id: file for file in owned_files}
-        # all_files.update({file.file_id: file for file in shared_files})
         
         # Convert to response model
         file_responses = [
