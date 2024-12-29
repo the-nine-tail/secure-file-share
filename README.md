@@ -2,6 +2,16 @@
 
 A secure end-to-end encrypted file sharing application with role-based access control, multi-factor authentication, and granular file permissions.
 
+## Workflow Diagram
+### 1. File Uploading
+<img width="756" alt="image" src="https://github.com/user-attachments/assets/8025e50f-eab0-49cd-8919-d083712b2047" />
+
+### 2. File Downloading
+<img width="1292" alt="image" src="https://github.com/user-attachments/assets/5a51a7b9-cc0c-4799-803f-ea25be356362" />
+
+### 3. File Sharing with permission and expiry time
+<img width="1256" alt="image" src="https://github.com/user-attachments/assets/9d47cbd9-b7e5-466a-b5a5-b5d6c092c783" />
+
 ## Features
 
 ### 1. Authentication & Security
