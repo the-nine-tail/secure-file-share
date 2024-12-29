@@ -12,13 +12,13 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
-    mfa_code: str | None = None
+    mfa_code: Optional[str] = None
 
 class UserResponse(BaseModel):
     email: str
     full_name: str
-    mfa_secret: str | None = None
-    mfa_uri: str | None = None
+    mfa_secret: Optional[str] = None
+    mfa_uri: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str
