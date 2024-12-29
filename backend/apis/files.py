@@ -1,13 +1,14 @@
+from datetime import datetime
 import os
 import uuid
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from dependencies.permissions import require_permissions
 from sqlalchemy.orm import Session
 from database.config import get_db
 from database.models import EncryptedFileShare, File, PublicKeyMapping, User
-from models.file import DownloadResponse, FileResponse, PublicKeyUpload, UpdateRecipients, UploadData
+from models.file import DownloadResponse, FileResponse, PublicKeyUpload, UpdateRecipients, UploadData, FileListResponse
 from dependencies.auth import get_current_user
-from typing import Tuple
+from typing import Tuple, List
 
 router = APIRouter()
 DATA_FOLDER = "uploaded_encrypted_files"
@@ -58,6 +59,7 @@ def upload_encrypted_file(
     
     file_id = str(uuid.uuid4())
     file_metadata = data.file_metadata
+    print("data.recipients", data.recipients)
 
     encrypted_files_db = EncryptedFileShare(
         file_id=file_id,
@@ -79,7 +81,9 @@ def upload_encrypted_file(
         extension=file_metadata.extension,
         height=file_metadata.height,
         width=file_metadata.width,
-        user_email=data.owner.lower().strip()
+        user_email=data.owner.lower().strip(),
+        created_at=datetime.now(),
+        updated_at=datetime.now()
     )
 
     db.add(encrypted_files_db)
@@ -96,7 +100,9 @@ def upload_encrypted_file(
         extension=db_file.extension,
         height=db_file.height,
         width=db_file.width,
-        user_email=data.owner.lower().strip()
+        user_email=data.owner.lower().strip(),
+        created_at=db_file.created_at,
+        updated_at=db_file.updated_at
     )
 
 
@@ -184,35 +190,53 @@ def update_recipients(
     return {"message": "Recipients updated successfully.", "new_keys": updated_keys}
 
 
-@router.get("/files/{file_id}", response_model=FileResponse)
-async def get_file(
-    file_id: str,
-    request: Request,
-    db: Session = Depends(get_db)
+@router.get("/files", response_model=FileListResponse)
+def get_files(
+    current_user_data: Tuple[User, str] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     try:
-        # Get user email from token
-        token_data = request.state.token_data
-        user_email = token_data["sub"]
+        current_user, user_email = current_user_data
         
-        # Get file record
-        file = db.query(File).filter(
-            File.file_id == file_id,
-            File.user_email == user_email
-        ).first()
+        files = db.query(File).filter().all()
         
-        if not file:
-            raise HTTPException(status_code=404, detail="File not found")
-            
-        return FileResponse(
-            file_id=file.file_id,
-            filename=file.filename,
-            filesize=file.filesize,
-            filetype=file.filetype,
-            extension=file.extension,
-            height=file.height,
-            width=file.width,
-            user_email=file.user_email
+        # Get files shared with the user
+        # shared_files_query = (
+        #     db.query(File)
+        #     .join(EncryptedFileShare, File.file_id == EncryptedFileShare.file_id)
+        #     .filter(
+        #         EncryptedFileShare.encrypted_keys.has_key(user_email)  # type: ignore
+        #     )
+        # )
+        # shared_files = shared_files_query.all()
+        
+        # # Combine and deduplicate files
+        # all_files = {file.file_id: file for file in owned_files}
+        # all_files.update({file.file_id: file for file in shared_files})
+        
+        # Convert to response model
+        file_responses = [
+            FileResponse(
+                file_id=file.file_id,
+                filename=file.filename,
+                filesize=file.filesize,
+                filetype=file.filetype,
+                extension=file.extension,
+                height=file.height,
+                width=file.width,
+                user_email=file.user_email,
+                created_at=file.created_at,
+                updated_at=file.updated_at
+            )
+            for file in files
+        ]
+        
+        # Sort by created_at descending (newest first)
+        file_responses.sort(key=lambda x: x.created_at, reverse=True)
+        
+        return FileListResponse(
+            files=file_responses,
+            total=len(file_responses)
         )
         
     except Exception as e:

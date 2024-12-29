@@ -6,8 +6,12 @@ import { StringUtils } from "../utils/string-utils";
 import { useAppSelector } from "../store/hooks";
 import { apiUrl } from "../constants/authConstant";
 import { Table } from '~/app/ui-components/table';
-import { Modal } from "../ui-components/modal";
+import { Modal } from "../ui-components/state-modal";
 import { LOADING_MODAL } from "../constants/constant";
+import { BodyPrimaryRegular, BodySecondaryRegular } from "../ui-components/typing";
+import Button from "../ui-components/button/button";
+import { ShareModal, ShareModalFormData } from '~/app/ui-components/share-modal';
+
 
 function validateEncryptedData(encryptedData: ArrayBuffer) {
   // GCM mode requires at least 16 bytes for the auth tag
@@ -47,11 +51,12 @@ const DashboardPage: React.FC = () => {
   const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
   const [shareWith, setShareWith] = useState<string>("");
-  const [downloadFileId, setDownloadFileId] = useState("");
-  const [selectedFileId, setSelectedFileId] = useState("");
   const [newShareEmail, setNewShareEmail] = useState("");
   const [removeShareEmail, setRemoveShareEmail] = useState("");
   const [modalProps, setModalProps] = useState<string | null>(null);
+  const [files, setFiles] = useState<Array<FileTable>>([]);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.email) {
@@ -59,6 +64,23 @@ const DashboardPage: React.FC = () => {
       loadOrGenerateKeyPair(user.email).catch(console.error);
     }
   }, [user?.email]);
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      if (!myEmail || !privateKey) return;
+      const res = await fetch(`${apiUrl}/files`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      console.log("data", data);
+      setFiles(data.files.map((file: FileTable) => ({
+        ...file,
+        onClickDownload: (e: React.FormEvent, fileId: string) => handleDownloadAndDecrypt(fileId),
+        onClickShare: (e: React.FormEvent, fileId: string) => handleShare(fileId)
+      })));
+    };
+    fetchFiles().catch(console.error);
+  }, [myEmail, privateKey]);
 
   // -------------------- Key Pair Management --------------------
   async function loadOrGenerateKeyPair(userEmail: string) {
@@ -260,7 +282,7 @@ const DashboardPage: React.FC = () => {
   }
 
   // -------------------- Download & Decrypt --------------------
-  async function handleDownloadAndDecrypt() {
+  async function handleDownloadAndDecrypt(downloadFileId: string) {
     if (!downloadFileId) {
       alert("No fileId specified.");
       return;
@@ -349,9 +371,9 @@ const DashboardPage: React.FC = () => {
     });
   };
   
-  async function handleUpdateSharing() {
+  async function handleUpdateSharing(selectedFileId: string, data: ShareModalFormData) {
     if (!selectedFileId) {
-      alert("Please enter a file ID first");
+      alert("File ID is required");
       return;
     }
     if (!privateKey) {
@@ -383,9 +405,9 @@ const DashboardPage: React.FC = () => {
       const removedUsers: string[] = [];
 
       // Handle new share recipient
-      if (newShareEmail) {
+      if (data.newUserEmail) {
         // 3. Get the new recipient's public key
-        const newUserPublicKey = await getPublicKeyFromServer(newShareEmail);
+        const newUserPublicKey = await getPublicKeyFromServer(data.newUserEmail);
         
         // 4. Encrypt the AES key for the new recipient
         const encryptedAesKeyBuf = await window.crypto.subtle.encrypt(
@@ -396,12 +418,12 @@ const DashboardPage: React.FC = () => {
         const encryptedAesKeyB64 = StringUtils.arrayBufferToBase64(encryptedAesKeyBuf);
         
         // Add to the payload
-        addedKeys[newShareEmail] = encryptedAesKeyB64;
+        addedKeys[data.newUserEmail] = encryptedAesKeyB64;
       }
 
       // Handle removal if specified
-      if (removeShareEmail) {
-        removedUsers.push(removeShareEmail);
+      if (data.removeUserEmail) {
+        removedUsers.push(data.removeUserEmail);
       }
 
       // 5. Send the update to the server
@@ -420,8 +442,7 @@ const DashboardPage: React.FC = () => {
       }
 
       alert('Sharing updated successfully!');
-      setNewShareEmail('');
-      setRemoveShareEmail('');
+      setIsShareModalOpen(false);
 
     } catch (error) {
       console.error('Error updating sharing:', error);
@@ -432,6 +453,22 @@ const DashboardPage: React.FC = () => {
   const handleFileSelect = (file: File) => {
     setFile(file);
     handleEncryptAndUpload(file);
+  };
+
+  const handleShare = (fileId: string) => {
+    setSelectedFileId(fileId);
+    setIsShareModalOpen(true);
+  };
+
+  const handleShareSubmit = async (data: ShareModalFormData) => {
+    if (!selectedFileId) return;
+    
+    try {
+      // Your sharing logic here using the form data
+      await handleUpdateSharing(selectedFileId, data);
+    } catch (error) {
+      console.error('Error sharing file:', error);
+    }
   };
 
   return (
@@ -447,46 +484,64 @@ const DashboardPage: React.FC = () => {
         type={modalProps ? LOADING_MODAL[modalProps].type : "loading"}
       />
       <MainPageStyle>
-        <div style={{ margin: "2rem" }}>
-          <h2>Download & Decrypt File</h2>
-          <input
-            type="text"
-            placeholder="File ID"
-            value={downloadFileId}
-            onChange={(e) => setDownloadFileId(e.target.value)}
-          />
-          <button onClick={handleDownloadAndDecrypt}>Decrypt and download file</button>
-
-          <h2>Update File Sharing</h2>
-          <input
-            type="text"
-            placeholder="File ID to modify sharing"
-            value={selectedFileId}
-            onChange={(e) => setSelectedFileId(e.target.value)}
-          />
-          <br /><br />
-
-          <input
-            type="text"
-            placeholder="Add new recipient email"
-            value={newShareEmail}
-            onChange={(e) => setNewShareEmail(e.target.value)}
-          />
-          <br />
-
-          <input
-            type="text"
-            placeholder="Remove recipient email"
-            value={removeShareEmail}
-            onChange={(e) => setRemoveShareEmail(e.target.value)}
-          />
-          <br /><br />
-
-          <button onClick={handleUpdateSharing}>Update Sharing</button>
-        </div>
+        {!!files?.length && <Table data={files} columns={FILE_TABLE_COLUMNS} />}
       </MainPageStyle>
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        onSubmit={handleShareSubmit}
+        title="Share File"
+      />
     </AuthenticatedLayout>
   );
 };
 
 export default DashboardPage;
+
+export interface FileTable {
+  file_id: string;
+  filename: string;
+  filesize: number;
+  filetype: string;
+  onClickDownload: (e: React.FormEvent, fileId: string) => void;
+  onClickShare: (e: React.FormEvent, fileId: string) => void;
+  created_at: Date;
+}
+
+const FILE_TABLE_COLUMNS = [
+  {
+    header: 'File Name',
+    render: (file: FileTable) => (
+      <BodyPrimaryRegular>{file.filename}</BodyPrimaryRegular>
+    ),
+    width: '40%',
+  },
+  {
+    header: 'File Type',
+    render: (file: FileTable) => (
+      <BodySecondaryRegular>{file.filetype?.split('/')?.pop() ?? 'Unknown'}</BodySecondaryRegular>
+    ),
+    width: '20%',
+  },
+  {
+    header: 'File Size',
+    render: (file: FileTable) => (
+      <BodySecondaryRegular>{file.filesize ?? 'Unknown'}</BodySecondaryRegular>
+    ),
+    width: '20%',
+  },
+  {
+    header: 'Download',
+    render: (file: FileTable) => (
+      <Button title="Download" id={file.file_id} onButtonClick={file.onClickDownload} />
+    ),
+    width: '20%',
+  },
+  {
+    header: 'Share',
+    render: (file: FileTable) => (
+      <Button title="Share" id={file.file_id} onButtonClick={file.onClickShare} />
+    ),
+    width: '20%',
+  },
+];

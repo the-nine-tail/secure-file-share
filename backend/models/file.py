@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Dict, Optional, List
+from datetime import datetime
 
 class FileMetadata(BaseModel):
     filename: str
@@ -27,6 +28,8 @@ class FileResponse(BaseModel):
     height: Optional[int] = None
     width: Optional[int] = None
     user_email: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class UploadData(BaseModel):
@@ -45,3 +48,8 @@ class DownloadResponse(BaseModel):
 class UpdateRecipients(BaseModel):
     added_keys: dict
     removed_users: list[str] = []
+
+
+class FileListResponse(BaseModel):
+    files: List[FileResponse]
+    total: int

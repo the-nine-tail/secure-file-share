@@ -6,7 +6,7 @@ import { Theme } from "~/app/theme";
 
 const Button: React.FC<ButtonProps> = (props) => {
   return (
-    <ButtonStyle onClick={(e) => props.onButtonClick(e, props.id)}>
+    <ButtonStyle onClick={(e) => props.onButtonClick(e, props.id ?? "")}>
       <BodyPrimaryMedium color={props.textColor ?? Theme.text.white}>
         {props.title}
       </BodyPrimaryMedium>

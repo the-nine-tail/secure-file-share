@@ -1,4 +1,5 @@
-import { ModalType } from "../ui-components/modal/types";
+import { ModalType } from "../ui-components/state-modal/types";
+import { BodyPrimaryRegular, BodySecondaryRegular } from '~/app/ui-components/typing';
 
 export const LOADING_MODAL: {
     [key: string]: {

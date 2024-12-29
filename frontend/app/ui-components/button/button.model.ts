@@ -6,7 +6,7 @@ export enum ButtonHeight {
 
 export interface ButtonProps {
   title: string;
-  onButtonClick: (e: React.FormEvent, id?: string) => void;
+  onButtonClick: (e: React.FormEvent, id: string) => void;
   type?: 'button' | 'submit' | 'reset';
   id?: string;
   width?: string;

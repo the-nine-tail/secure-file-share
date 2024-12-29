@@ -9,7 +9,8 @@ import {
   TableRow,
   TableCell,
   EmptyState,
-  LoadingOverlay
+  LoadingOverlay,
+  TableWrapper
 } from './style';
 import { BodySecondaryRegular } from '../typing';
 
@@ -22,44 +23,46 @@ function Table<T>({
 }: TableProps<T>) {
   return (
     <TableContainer className={className}>
-      <StyledTable>
-        <TableHeader>
-          <TableRow>
-            {columns.map((column, index) => (
-              <TableHeaderCell 
-                key={index}
-                width={column.width}
-                minWidth={column.minWidth}
-              >
-                {column.header}
-              </TableHeaderCell>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.length > 0 ? (
-            data.map((item, rowIndex) => (
-              <TableRow key={rowIndex}>
-                {columns.map((column, colIndex) => (
-                  <TableCell key={colIndex}>
-                    {column.render(item)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
+      <TableWrapper>
+        <StyledTable>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={columns.length}>
-                <EmptyState>
-                  <BodySecondaryRegular>
-                    {emptyMessage}
-                  </BodySecondaryRegular>
-                </EmptyState>
-              </TableCell>
+              {columns.map((column, index) => (
+                <TableHeaderCell 
+                  key={index}
+                  width={column.width}
+                  minWidth={column.minWidth}
+                >
+                  {column.header}
+                </TableHeaderCell>
+              ))}
             </TableRow>
-          )}
-        </TableBody>
-      </StyledTable>
+          </TableHeader>
+          <TableBody>
+            {data?.length > 0 ? (
+              data.map((item, rowIndex) => (
+                <TableRow key={rowIndex}>
+                  {columns.map((column, colIndex) => (
+                    <TableCell key={colIndex}>
+                      {column.render(item)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length}>
+                  <EmptyState>
+                    <BodySecondaryRegular>
+                      {emptyMessage}
+                    </BodySecondaryRegular>
+                  </EmptyState>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </StyledTable>
+      </TableWrapper>
       {loading && (
         <LoadingOverlay>
           <BodySecondaryRegular>Loading...</BodySecondaryRegular>
