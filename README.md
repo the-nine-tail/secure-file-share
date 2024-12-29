@@ -12,6 +12,15 @@ A secure end-to-end encrypted file sharing application with role-based access co
 ### 3. File Sharing with permission and expiry time
 <img width="1256" alt="image" src="https://github.com/user-attachments/assets/9d47cbd9-b7e5-466a-b5a5-b5d6c092c783" />
 
+## Setup and Installation
+**Docker Setup**
+   ```bash
+   git clone git@github.com:the-nine-tail/secure-file-share.git
+   cd secure-file-share
+   docker compose up --build
+   ```
+
+
 ## Features
 
 ### 1. Authentication & Security
@@ -110,15 +119,6 @@ A secure end-to-end encrypted file sharing application with role-based access co
        "expires_at": "timestamp"
      }
    }
-   ```
-
-## Setup and Installation
-
-1. **Docker Setup**
-   ```bash
-   git clone <repo-url>
-   cd secure-file-share
-   docker compose up --build
    ```
 
 ## API Endpoints
