@@ -5,6 +5,7 @@ from database.config import get_db
 from database.models import User
 from auth.auth_handler import AuthHandler
 import pyotp
+from sqlalchemy import func
 
 router = APIRouter()
 auth_handler = AuthHandler()
@@ -35,6 +36,18 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     
     # Hash password
     hashed_password = auth_handler.get_password_hash(user_data.password)
+
+    # Determine user role
+    # Check if this is the first user
+    user_count = db.query(func.count(User.email)).scalar()
+    print("user_count: ", user_count)
+
+    if user_count == 0:
+        # First user becomes admin
+        role = "admin"
+    else:
+        # Default role
+        role = user_data.role or "user"
     
     # Create new user
     db_user = User(
@@ -42,7 +55,8 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         full_name=user_data.full_name,
         password=hashed_password,
         mfa_secret=mfa_secret,
-        mfa_active=False
+        mfa_active=False,
+        role=role
     )
     
     db.add(db_user)
@@ -174,5 +188,6 @@ async def get_user(
         full_name=user.full_name,
         mfa_active=user.mfa_active,
         created_at=user.created_at,
-        updated_at=user.updated_at
+        updated_at=user.updated_at,
+        role=user.role
     )

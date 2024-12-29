@@ -17,12 +17,14 @@ const MainContent = styled.main`
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
   allowedRoles: string[];
+  role: string;
   onFileSelect: (file: File) => void;
 }
 
 const AuthenticatedLayout: React.FC<AuthenticatedLayoutProps> = ({ 
   children, 
   allowedRoles,
+  role,
   onFileSelect
 }) => {
   return (
@@ -31,6 +33,7 @@ const AuthenticatedLayout: React.FC<AuthenticatedLayoutProps> = ({
         <Header 
           brandName="Secure File Share" 
           onFileSelect={onFileSelect}
+          role={role}
         />
         <MainContent>
           {children}

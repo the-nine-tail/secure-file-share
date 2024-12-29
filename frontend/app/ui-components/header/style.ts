@@ -15,7 +15,8 @@ export const HeaderContainer = styled.header`
 
 export const BrandSection = styled.div`
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  gap: 16px;
 `;
 
 export const BrandName = styled.h1`

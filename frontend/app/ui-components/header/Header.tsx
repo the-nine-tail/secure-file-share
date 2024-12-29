@@ -10,13 +10,15 @@ import {
   LogoutButton,
   BrandName
 } from './style';
+import { BodyPrimaryRegular } from '../typing';
 
 interface HeaderProps {
   brandName: string;
+  role: string;
   onFileSelect: (file: File) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ brandName, onFileSelect }) => {
+const Header: React.FC<HeaderProps> = ({ brandName, role, onFileSelect }) => {
   const router = useRouter();
   const { logout } = useAuth();
 
@@ -38,6 +40,9 @@ const Header: React.FC<HeaderProps> = ({ brandName, onFileSelect }) => {
     <HeaderContainer>
       <BrandSection>
         <BrandName>{brandName}</BrandName>
+        <BodyPrimaryRegular>
+          Role: {role}
+        </BodyPrimaryRegular>
       </BrandSection>
       <ActionsSection>
         <UploadFileLabel>

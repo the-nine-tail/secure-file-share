@@ -474,6 +474,7 @@ const DashboardPage: React.FC = () => {
   return (
     <AuthenticatedLayout 
       allowedRoles={["admin", "user"]}
+      role={user?.role ?? ""}
       onFileSelect={handleFileSelect}
     >
       <Modal
